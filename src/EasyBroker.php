@@ -3,20 +3,21 @@
 namespace EasyBroker;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
+use GuzzleHttp\Exception\GuzzleException;
 
 class EasyBroker
 {
-     public const RESULT_NOT_FOUND = 'result_not_found';
+    public const RESULT_NOT_FOUND = 'result_not_found';
 
     /** @var \GuzzleHttp\Client */
     protected $client;
 
     /** @var string */
-    protected $endpoint = 'https://maps.googleapis.com/maps/api/geocode/json';
+    protected $base_url = 'https://api.stagingeb.com/v1';
 
     /** @var string */
     protected $apiKey;
-
 
     public function __construct(Client $client)
     {
@@ -29,72 +30,71 @@ class EasyBroker
 
         return $this;
     }
-    
 
+    private function getHeaders(): array
+    {
+        return [
+            'headers' => [
+                'accept' => 'application/json',
+                "X-Authorization" => $this->apiKey
+            ]
+        ];
+    }
 
     public function getProperty($id): array
     {
-        $response = $this->getProperties();
+        try {
+            $endpoint = $this->base_url . '/properties/' . $id;
+            $response = $this->client->request('GET', $endpoint, $this->getHeaders());
 
-        return $response[0];
+            $apiResponse = json_decode($response->getBody());
+
+            return [
+                'id' => $apiResponse->public_id,
+                'title' => $apiResponse->title,
+            ];
+        } catch (ClientException $exception) {
+            if ($exception->getCode() == 404) {
+                return $this->emptyResponse();
+            }
+        }
     }
 
-    public function getProperties(): array
-    {        
+    public function getProperties(array $parameters = []): array
+    {
+        $payload = $this->getRequestPayload($parameters);
+        $endpoint = $this->base_url . '/properties';
 
-        $payload = $this->getRequestPayload(compact('address'));
-        $response = $this->client->request('GET', $this->endpoint, $payload);
+        $response = $this->client->request('GET', $endpoint, array_merge($this->getHeaders(), $payload));
 
-        if ($response->getStatusCode() !== 200) {
-            throw CouldNotGeocode::couldNotConnect();
-        }
+        $apiResponse = json_decode($response->getBody());
 
-        $geocodingResponse = json_decode($response->getBody());
-
-        if (! empty($geocodingResponse->error_message)) {
-            throw CouldNotGeocode::serviceReturnedError($geocodingResponse->error_message);
-        }
-
-        if (! count($geocodingResponse->results)) {
+        if (!count($apiResponse->content)) {
             return $this->emptyResponse();
         }
 
-        return $this->formatResponse($geocodingResponse);
+        return $this->formatResponse($apiResponse);
     }
 
-    
+
     protected function formatResponse($response): array
     {
-        $locations = array_map(function ($result) {
+        $properties = array_map(function ($result) {
             return [
-                'lat' => $result->geometry->location->lat,
-                'lng' => $result->geometry->location->lng,
-                'accuracy' => $result->geometry->location_type,
-                'formatted_address' => $result->formatted_address,
-                'viewport' => $result->geometry->viewport,
-                'address_components' => $result->address_components,
-                'place_id' => $result->place_id,
+                'id' => $result->public_id,
+                'title' => $result->title,
             ];
-        }, $response->results);
+        }, $response->content);
 
-        return $locations;
+        return $properties;
     }
 
-    protected function getRequestPayload(array $parameters): array
+    protected function getRequestPayload(array $parameters = []): array
     {
-        $parameters = array_merge([
-            'key' => $this->apiKey,
-            'language' => $this->language,
-            'region' => $this->region,
-            'bounds' => $this->bounds,
-        ], $parameters);
 
-        if ($this->country) {
-            $parameters = array_merge(
-                $parameters,
-                ['components' => 'country:'.$this->country]
-            );
-        }
+        $parameters = array_merge([
+            'limit' => 20
+        ], $parameters);
 
         return ['query' => $parameters];
     }
@@ -102,13 +102,7 @@ class EasyBroker
     protected function emptyResponse(): array
     {
         return [
-            [
-                'lat' => 0,
-                'lng' => 0,
-                'accuracy' => static::RESULT_NOT_FOUND,
-                'formatted_address' => static::RESULT_NOT_FOUND,
-                'viewport' => static::RESULT_NOT_FOUND,
-            ],
+            'title' => static::RESULT_NOT_FOUND,
         ];
     }
 }
