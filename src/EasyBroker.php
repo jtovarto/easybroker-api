@@ -49,23 +49,21 @@ class EasyBroker
 
             $apiResponse = json_decode($response->getBody());
 
-            return [
-                'id' => $apiResponse->public_id,
-                'title' => $apiResponse->title,
-            ];
+            return $this->formattedProperty($apiResponse);
         } catch (ClientException $exception) {
             if ($exception->getCode() == 404) {
                 return $this->emptyResponse();
             }
         }
     }
+    
 
     public function getProperties(array $parameters = []): array
     {
         $payload = $this->getRequestPayload($parameters);
         $endpoint = $this->base_url . '/properties';
 
-        $response = $this->client->request('GET', $endpoint, array_merge($this->getHeaders(), $payload));
+        $response = $this->client->request('GET', $endpoint, array_merge($this->getHeaders(), $payload));       
 
         $apiResponse = json_decode($response->getBody());
 
@@ -80,10 +78,7 @@ class EasyBroker
     protected function formatResponse($response): array
     {
         $properties = array_map(function ($result) {
-            return [
-                'id' => $result->public_id,
-                'title' => $result->title,
-            ];
+            return $this->formattedProperty($result);
         }, $response->content);
 
         return $properties;
@@ -91,7 +86,6 @@ class EasyBroker
 
     protected function getRequestPayload(array $parameters = []): array
     {
-
         $parameters = array_merge([
             'limit' => 20
         ], $parameters);
@@ -103,6 +97,14 @@ class EasyBroker
     {
         return [
             'title' => static::RESULT_NOT_FOUND,
+        ];
+    }
+
+    protected function formattedProperty($property): array
+    {
+        return [
+            'id' => $property->public_id,
+            'title' => $property->title,
         ];
     }
 }
