@@ -74,6 +74,15 @@ class EasyBroker
         return $this->formatResponse($apiResponse);
     }
 
+    public function printProperties()
+    {
+        $properties = $this->getProperties();
+
+        foreach ($properties as $property) {
+            echo $property['title'];
+        }
+    }
+
 
     protected function formatResponse($response): array
     {
