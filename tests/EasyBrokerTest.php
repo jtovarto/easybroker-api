@@ -9,7 +9,6 @@ use GuzzleHttp\Exception\GuzzleException;
 
 class EasyBrokerTest extends TestCase
 {
-    /** @var \Spatie\Geocoder\Geocoder */
     protected $easyBroker;
 
     public function setUp(): void
